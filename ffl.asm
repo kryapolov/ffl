@@ -1,13 +1,32 @@
 ;FFl
-        model   tiny
 
-        .code
-        org     100h
+      IDEAL
+      model   small
+      Stack 512
+
+   dataSeg
+offs    dw      3
+Wri_1   db 'Найдено *.xxx файлов: ',0
+Welcome db 'Пожалуйста ждите , идет поиск...',0
+index   dw 0
+rezu    db 20 dup (0)
+Dta     db 60 dup (0)
+maska   db      '\*.*',0
+Massa   db    '.COM'
+Buffel  db 13 dup (0)
+path    db   'D:\*.*',90 dup(0),0
+
+        codeSeG
 EXTRN BinToAscDec:Proc,StrWrite:Proc,GetParams:Proc,GetOneParam:Proc,ParamCount:Proc
 EXTRN NewLine:Proc,StrUpper:proc
 start:
+    mov  ax,@data
+    mov  es,ax
+    mov  ds,ax
+
+
         mov     ax,2524h
-        lea     dx,int_24
+        mov     dx,offset int_24
         int     21h
 
     Call GetParams
@@ -18,21 +37,25 @@ start:
     jz   @10p
     call NewLine
     xor cx,cx
-    push cs
-    pop  ds
-    call GetOneParam ; получить параметр и
+    call GetOneParam ; Получить параметр и
+    mov si,di
+    mov di,offset Path
+    movsw
     ;Call StrUpper ; преобразовать в прописные
     ;    xchg di,ax
-    mov ax,word ptr cs:[di]
-    mov  word ptr cs:[path],ax
+    ;mov ax,[di]
+    ;mov bx,offset Path
+    ;mov [bx],ax
 
-    mov cx,1
-    call GetOneParam ; получить параметр и
-    Call StrUpper ; преобразовать в прописные
-    mov si,di
-    mov di,offset massa+1
-    movsw
-    movsb
+    ;mov word ptr [Path],ax
+
+   ; mov cx,1
+   ; call GetOneParam ; Получить параметр и
+   ; Call StrUpper ; преобразовать в прописные
+   ; mov si,di
+   ; mov di,offset massa+1
+   ; movsw
+   ; movsb
 
 
     ;    mov     ah,19h
@@ -43,10 +66,16 @@ start:
     ;    add     al,41h
     ;    add al,43h
     ;    mov     tik,al
+
+    mov dx,offset Dta
+    mov ah,1Ah
+    int 21h
+
+
 nachalo:
-        mov     ah,4eh    ; поиск по первой
+        mov     ah,4eh    ; Поиск по первой
         mov     cx,37h    ;
-        lea     dx,path   ;
+        mov     dx,offset path   ;
         int     21h
         jnc     no_problem
         jmp     quit      ; есть проблемы.
@@ -55,11 +84,13 @@ nachalo:
 
 
 no_problem:
-        mov     si,95h              ; Тестируем аттрибуты.
-        test    byte ptr [si],10h   ;
+        mov     si,offset Dta + 21;95h              ; Тестируем аттрибуты.
+        mov     ax,[si]
+        ;test    byte ptr [si],10h   ;
+        test    ax,10h
         jnz     dir                 ;
 
-        mov     si,9eh
+        mov     si,offset Dta+30;9eh
         mov     cx,13
         mov     bx,0
         mov     di,offset massa
@@ -103,7 +134,7 @@ nexus:
         mov     cx,80       ;
         mov     bh,0        ;
         int     10h         ;
-        lea     si,path
+        mov     si,offset path
         cld
 ; Вывод пути к файлу
 sled:   mov     ah,0eh
@@ -115,7 +146,7 @@ sled:   mov     ah,0eh
         jmp     short sled
 end_dir:
 ; Вывод имени самого файла.
-        mov     si,9eh
+        mov     si,offset Dta+30;9eh
 sled1:
         mov     ah,0eh
         mov     bh,0
@@ -130,16 +161,17 @@ end_name:
 Pardon:
         jmp     short next
 dir:
-        mov     si,9eh
-        cmp     byte ptr [si],'.'
+        mov     si,offset Dta+30;9eh
+        mov     ax,[si]
+        cmp     ax,'.'
         je      next
-        lea     di,path
-        add     di,offs
+        mov     di,offset path
+        add     di,[offs]
         cld
 opium:
         lodsb
         stosb
-        inc     offs  ; ?овышаем ранг.
+        inc     [offs]  ; Повышаем ранг.
         cmp     al,0
         jne     opium
         dec     di
@@ -160,27 +192,28 @@ next:
         jc Quit
         jmp  no_problem
 quit:
-        cmp     offs,3
+        cmp     [offs],3
         je      exit ; Ведь так ? ... диск кончился и мы завешаем аботу.
 
-        lea     di,path   ; Чет побеpи есть и дpугие каталоги.
-        add     di,offs   ; Ставим указатель на конец.
+        mov     di,offset path   ; Чет побеpи есть и дpугие каталоги.
+        add     di,[offs]   ; Ставим указатель на конец.
         dec     di   ;-1  ; Имя состоит минимум из 1го символа.
 found:
         dec     di   ;-1
-        dec     offs ;-1
+        dec     [offs] ;-1
         ; Ставим указатель на постедний каталог.
-        cmp     byte ptr [di],'\' ; Опpеделяем это
+        mov ax,[di]
+        cmp     ax,'\' ; Опpеделяем это
         jne     found
         call    form  ; дописываем маску в конец каталога.
-        mov     cx,22      ; байты необходимые для поиска дальше.
+        mov     cx,22      ; Байты необходимые для поиска дальше.
         mov     di,80h+42  ; Опpеделяем нужное место в DTA.
         std     ; Автоуменьшение.
 pop_loop:
         pop     ax ; Забиаем из стека.
         stosw   ; Кидаем в DTA.
         loop    pop_loop  ; Зацикливаем.
-        jmp     short next ; пpодолжаем поиск дальше.
+        jmp     short next ; Пpодолжаем поиск дальше.
 
 exit:
 ;
@@ -208,7 +241,7 @@ ex:
    ;lea dx,Wri_1    ; Вывод  сообщения
    ;mov ah,40h
    ;int 21h
-   lea di,Wri_1
+   mov di,offset Wri_1
    call StrWrite
 
 
@@ -230,14 +263,14 @@ ex:
 
 form:
 
-        lea     si,maska   ;  Копиpуем маску поиска в стpоку пути.
+        mov     si,offset maska   ;  Копиpуем маску поиска в стpоку пути.
         cld                ;
         mov     cx,5       ;
         rep     movsb      ;
         ret                ;
 
 lotos:
-        mov     si,9eh
+        mov     si,offset Dta+30;9eh
         mov     cx,13
 l0:
         mov     al,[si]
@@ -268,18 +301,5 @@ l201:
 int_24:
         mov     al,3
         iret
-
-        .data
-offs    dw      3
-;tik     db      0
-
-Wri_1   db 'найдено *.xxx файлов: ',0
-Welcome db 'пожалуйста ждите , идет поиск...',0
-index   dw 0
-rezu    db 20 dup (0)
-maska   db      '\*.*',0
-Massa   db    '.COM'
-Buffel  db 13 dup (0)
-path    db      'D:\*.*',0
 
         end     start
